@@ -9,6 +9,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 export default function ActiveMembersScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   
   // Auth States
   const [user, setUser] = useState<User | null>(null);
@@ -110,6 +111,7 @@ export default function ActiveMembersScreen() {
     if (!isAuthorized) return;
     try {
       await deleteDoc(doc(db, 'members', id));
+      setDeleteConfirmId(null);
     } catch (error) {
       console.error("Error removing member: ", error);
       alert('Error removing member.');
@@ -126,7 +128,7 @@ export default function ActiveMembersScreen() {
         >
           <Text style={styles.actionBtnText}>Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => setDeleteConfirmId(item.id)}>
           <Text style={styles.actionBtnText}>Remove</Text>
         </TouchableOpacity>
       </View>
@@ -228,6 +230,23 @@ export default function ActiveMembersScreen() {
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
           />
+        )}
+
+        {/* Custom Delete Confirmation Modal */}
+        {deleteConfirmId && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>SIGUR???</Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setDeleteConfirmId(null)}>
+                  <Text style={styles.modalBtnText}>NU AM APASAT GRESIT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalConfirmBtn} onPress={() => handleDelete(deleteConfirmId)}>
+                  <Text style={styles.modalBtnText}>DA NORMAL</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -429,5 +448,52 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0, bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#18181b',
+    padding: 32,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#27272a',
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#ef4444',
+    marginBottom: 32,
+  },
+  modalButtons: {
+    flexDirection: 'column',
+    width: '100%',
+    gap: 16,
+  },
+  modalConfirmBtn: {
+    backgroundColor: '#ef4444',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelBtn: {
+    backgroundColor: '#3f3f46',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
   }
 });
