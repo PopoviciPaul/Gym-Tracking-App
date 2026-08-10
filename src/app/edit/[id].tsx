@@ -28,8 +28,19 @@ export default function EditMemberScreen() {
   const [types, setTypes] = useState<string[]>(parseTypes(params.type));
   
   const [startDate, setStartDate] = useState((params.startDate as string) || '');
+  const [endDate, setEndDate] = useState((params.endDate as string) || '');
   
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleStartDateChange = (newDate: string) => {
+    setStartDate(newDate);
+    const start = new Date(newDate);
+    if (!isNaN(start.getTime())) {
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + 1);
+      setEndDate(end.toISOString().split('T')[0]);
+    }
+  };
 
   const handleSave = async () => {
     if (!firstName || !lastName) {
@@ -43,12 +54,6 @@ export default function EditMemberScreen() {
     
     setIsSaving(true);
     try {
-      // Recalculate end date to be 1 month after the (potentially new) start date
-      const start = new Date(startDate);
-      const end = new Date(start);
-      end.setMonth(end.getMonth() + 1);
-      const endDate = end.toISOString().split('T')[0];
-
       // Update the existing document in Firebase Firestore
       const memberRef = doc(db, 'members', id);
       await updateDoc(memberRef, {
@@ -152,14 +157,35 @@ export default function EditMemberScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Start Date (YYYY-MM-DD)</Text>
-            <TextInput 
-              style={styles.input} 
-              value={startDate} 
-              onChangeText={setStartDate} 
-              placeholderTextColor="#52525b" 
-            />
-            <Text style={styles.hint}>End date will be automatically recalculated to 1 month later upon saving.</Text>
+            <Text style={styles.label}>Start Date</Text>
+            {Platform.OS === 'web' ? (
+              // @ts-ignore - Using native HTML input for Web PWA native calendar wheel
+              <input 
+                type="date"
+                value={startDate}
+                onChange={(e: any) => handleStartDateChange(e.target.value)}
+                style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '16px', color: '#f4f4f5', fontSize: '16px', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            ) : (
+              <TextInput style={styles.input} value={startDate} onChangeText={handleStartDateChange} />
+            )}
+            <Text style={styles.hint}>End date automatically recalculates to 1 month later.</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>End Date (Manual Override)</Text>
+            {Platform.OS === 'web' ? (
+              // @ts-ignore
+              <input 
+                type="date"
+                value={endDate}
+                onChange={(e: any) => setEndDate(e.target.value)}
+                style={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px', padding: '16px', color: '#f4f4f5', fontSize: '16px', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            ) : (
+              <TextInput style={styles.input} value={endDate} onChangeText={setEndDate} />
+            )}
+            <Text style={styles.hint}>Edit this if the member purchased a longer membership.</Text>
           </View>
 
           <TouchableOpacity 
