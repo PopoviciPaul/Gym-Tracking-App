@@ -9,7 +9,7 @@ export default function AddMemberScreen() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [type, setType] = useState('BJJ');
+  const [types, setTypes] = useState<string[]>(['BJJ']);
   
   const today = new Date();
   const [startDate, setStartDate] = useState(today.toISOString().split('T')[0]);
@@ -18,6 +18,10 @@ export default function AddMemberScreen() {
   const handleSave = async () => {
     if (!firstName || !lastName) {
       alert('First and Last name are required!');
+      return;
+    }
+    if (types.length === 0) {
+      alert('Please select at least one membership discipline!');
       return;
     }
     
@@ -35,7 +39,7 @@ export default function AddMemberScreen() {
         lastName: lastName.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        type,
+        type: types, // Saving as an array but keeping the key 'type' for backward compatibility
         startDate,
         endDate
       });
@@ -107,17 +111,26 @@ export default function AddMemberScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Membership Type</Text>
+            <Text style={styles.label}>Membership Disciplines (Select Multiple)</Text>
             <View style={styles.typeSelector}>
-              {['BJJ', 'Kickboxing', 'MMA', 'Armwrestling'].map(t => (
-                <TouchableOpacity 
-                  key={t} 
-                  style={[styles.typeBtn, type === t && styles.typeBtnActive]}
-                  onPress={() => setType(t)}
-                >
-                  <Text style={[styles.typeBtnText, type === t && styles.typeBtnTextActive]}>{t}</Text>
-                </TouchableOpacity>
-              ))}
+              {['BJJ', 'Kickboxing', 'MMA', 'Armwrestling', 'Kids BJJ', 'Kids Karate'].map(t => {
+                const isSelected = types.includes(t);
+                return (
+                  <TouchableOpacity 
+                    key={t} 
+                    style={[styles.typeBtn, isSelected && styles.typeBtnActive]}
+                    onPress={() => {
+                      if (isSelected) {
+                        setTypes(types.filter(type => type !== t));
+                      } else {
+                        setTypes([...types, t]);
+                      }
+                    }}
+                  >
+                    <Text style={[styles.typeBtnText, isSelected && styles.typeBtnTextActive]}>{t}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 

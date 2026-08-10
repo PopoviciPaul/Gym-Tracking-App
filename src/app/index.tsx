@@ -135,13 +135,19 @@ export default function ActiveMembersScreen() {
 
   const renderItem = ({ item }: { item: any }) => {
     const statusColor = getStatusColor(item.endDate);
+    const memberTypes = Array.isArray(item.type) ? item.type : (item.type ? [item.type] : []);
+    
     return (
       <Swipeable renderLeftActions={() => renderLeftActions(item)}>
         <View style={[styles.card, { borderLeftColor: statusColor }]}>
           <View style={styles.cardHeader}>
             <Text style={styles.name}>{item.lastName}, {item.firstName}</Text>
-            <View style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.badgeText, { color: statusColor }]}>{item.type}</Text>
+            <View style={styles.badgeContainer}>
+              {memberTypes.map((t: string) => (
+                <View key={t} style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
+                  <Text style={[styles.badgeText, { color: statusColor }]}>{t}</Text>
+                </View>
+              ))}
             </View>
           </View>
           <View style={styles.infoRow}>
@@ -328,6 +334,14 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#f4f4f5',
+    flex: 1,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    justifyContent: 'flex-end',
+    maxWidth: '50%',
   },
   badge: {
     paddingHorizontal: 12,

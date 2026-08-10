@@ -14,7 +14,19 @@ export default function EditMemberScreen() {
   const [lastName, setLastName] = useState((params.lastName as string) || '');
   const [email, setEmail] = useState((params.email as string) || '');
   const [phone, setPhone] = useState((params.phone as string) || '');
-  const [type, setType] = useState((params.type as string) || 'BJJ');
+  
+  // Safe extraction of type parameter which could be a string or an array of strings
+  const parseTypes = (t: any): string[] => {
+    if (!t) return ['BJJ'];
+    if (Array.isArray(t)) return t;
+    if (typeof t === 'string') {
+      if (t.includes(',')) return t.split(',').map(s => s.trim());
+      return [t];
+    }
+    return ['BJJ'];
+  };
+  const [types, setTypes] = useState<string[]>(parseTypes(params.type));
+  
   const [startDate, setStartDate] = useState((params.startDate as string) || '');
   
   const [isSaving, setIsSaving] = useState(false);
@@ -22,6 +34,10 @@ export default function EditMemberScreen() {
   const handleSave = async () => {
     if (!firstName || !lastName) {
       alert('First and Last name are required!');
+      return;
+    }
+    if (types.length === 0) {
+      alert('Please select at least one membership discipline!');
       return;
     }
     
@@ -40,7 +56,7 @@ export default function EditMemberScreen() {
         lastName: lastName.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        type,
+        type: types, // Saving as an array but keeping the key 'type' for backward compatibility
         startDate,
         endDate
       });
@@ -112,17 +128,26 @@ export default function EditMemberScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Membership Type</Text>
+            <Text style={styles.label}>Membership Disciplines (Select Multiple)</Text>
             <View style={styles.typeSelector}>
-              {['BJJ', 'Kickboxing', 'MMA', 'Armwrestling'].map(t => (
-                <TouchableOpacity 
-                  key={t} 
-                  style={[styles.typeBtn, type === t && styles.typeBtnActive]}
-                  onPress={() => setType(t)}
-                >
-                  <Text style={[styles.typeBtnText, type === t && styles.typeBtnTextActive]}>{t}</Text>
-                </TouchableOpacity>
-              ))}
+              {['BJJ', 'Kickboxing', 'MMA', 'Armwrestling', 'Kids BJJ', 'Kids Karate'].map(t => {
+                const isSelected = types.includes(t);
+                return (
+                  <TouchableOpacity 
+                    key={t} 
+                    style={[styles.typeBtn, isSelected && styles.typeBtnActive]}
+                    onPress={() => {
+                      if (isSelected) {
+                        setTypes(types.filter(type => type !== t));
+                      } else {
+                        setTypes([...types, t]);
+                      }
+                    }}
+                  >
+                    <Text style={[styles.typeBtnText, isSelected && styles.typeBtnTextActive]}>{t}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
