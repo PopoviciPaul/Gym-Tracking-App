@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Gym_Tracking_Membership_App",
+    "name": "Gym Tracker",
     "slug": "Gym_Tracking_Membership_App",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#09090b",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -21,14 +21,19 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Gym Tracker",
+      "shortName": "Gym Tracker",
+      "themeColor": "#09090b",
+      "backgroundColor": "#09090b",
+      "display": "standalone"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#09090b",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
