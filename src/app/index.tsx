@@ -116,20 +116,27 @@ export default function ActiveMembersScreen() {
     }
   };
 
-  const renderLeftActions = (id: string) => {
+  const renderLeftActions = (item: any) => {
     if (!isAuthorized) return null; // Safety check
     return (
-      <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(id)}>
-        <Text style={styles.deleteBtnText}>Remove</Text>
-        <Text style={styles.deleteBtnText}>Member</Text>
-      </TouchableOpacity>
+      <View style={styles.actionContainer}>
+        <TouchableOpacity 
+          style={styles.editBtn} 
+          onPress={() => router.push({ pathname: '/edit/[id]', params: item })}
+        >
+          <Text style={styles.actionBtnText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
+          <Text style={styles.actionBtnText}>Remove</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
   const renderItem = ({ item }: { item: any }) => {
     const statusColor = getStatusColor(item.endDate);
     return (
-      <Swipeable renderLeftActions={() => renderLeftActions(item.id)}>
+      <Swipeable renderLeftActions={() => renderLeftActions(item)}>
         <View style={[styles.card, { borderLeftColor: statusColor }]}>
           <View style={styles.cardHeader}>
             <Text style={styles.name}>{item.lastName}, {item.firstName}</Text>
@@ -383,15 +390,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
+  actionContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  editBtn: {
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
   deleteBtn: {
     backgroundColor: '#ef4444',
     justifyContent: 'center',
     alignItems: 'center',
-    width: 100,
-    borderRadius: 16,
-    marginBottom: 16,
+    width: 80,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
-  deleteBtnText: {
+  actionBtnText: {
     color: '#ffffff',
     fontWeight: '800',
     fontSize: 14,
