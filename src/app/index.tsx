@@ -1,98 +1,400 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo, useState, useEffect } from 'react';
+import { StyleSheet, View, Text, FlatList, SafeAreaView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
+import { collection, onSnapshot, query, doc, deleteDoc, getDocs, where } from 'firebase/firestore';
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { db, auth, googleProvider } from '../config/firebase';
+import { Swipeable } from 'react-native-gesture-handler';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function ActiveMembersScreen() {
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  // Auth States
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
+  // Handle Authentication State & Allowlist Check
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser && currentUser.email) {
+        try {
+          // Cross-reference their email with the allowedUsers database
+          const q = query(collection(db, 'allowedUsers'), where("email", "==", currentUser.email));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            setIsAuthorized(true); // Email is on the allowlist!
+          } else {
+            setIsAuthorized(false); // Logged in, but NOT on the allowlist
+            alert("Access Denied: You do not have administrative privileges.");
+            await signOut(auth); // Immediately kick them out
+          }
+        } catch (error) {
+          console.error("Error checking authorization:", error);
+          setIsAuthorized(false);
+          await signOut(auth);
+        }
+      } else {
+        setIsAuthorized(false); // Not logged in at all
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Fetch Member Data ONLY if Authorized
+  useEffect(() => {
+    if (!isAuthorized) {
+      setMembers([]); // Clear any lingering data if guest
+      return;
+    }
+    
+    setLoading(true);
+    const q = query(collection(db, 'members'));
+    const unsubscribeData = onSnapshot(q, (querySnapshot) => {
+      const membersData: any[] = [];
+      querySnapshot.forEach((document) => {
+        membersData.push({ id: document.id, ...document.data() });
+      });
+      setMembers(membersData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching members: ", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribeData();
+  }, [isAuthorized]);
+
+  // Sort members alphabetically
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => {
+      const last = (a.lastName || '').localeCompare(b.lastName || '');
+      if (last !== 0) return last;
+      return (a.firstName || '').localeCompare(b.firstName || '');
+    });
+  }, [members]);
+
+  const handleLogin = async () => {
+    if (Platform.OS === 'web') {
+      try {
+        await signInWithPopup(auth, googleProvider);
+      } catch (error) {
+        console.error("Login failed:", error);
+      }
+    } else {
+      alert("Native Google Login will be implemented in Phase 4!");
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
+
+  const getStatusColor = (endDateStr: string) => {
+    if (!endDateStr) return '#ef4444';
+    const end = new Date(endDateStr);
+    const now = new Date();
+    const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
+    
+    if (diffDays < 0) return '#ef4444'; // Red
+    if (diffDays <= 3) return '#eab308'; // Yellow
+    return '#22c55e'; // Green
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!isAuthorized) return;
+    try {
+      await deleteDoc(doc(db, 'members', id));
+    } catch (error) {
+      console.error("Error removing member: ", error);
+      alert('Error removing member.');
+    }
+  };
+
+  const renderLeftActions = (id: string) => {
+    if (!isAuthorized) return null; // Safety check
     return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
+      <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(id)}>
+        <Text style={styles.deleteBtnText}>Remove</Text>
+        <Text style={styles.deleteBtnText}>Member</Text>
+      </TouchableOpacity>
     );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  };
+
+  const renderItem = ({ item }: { item: any }) => {
+    const statusColor = getStatusColor(item.endDate);
+    return (
+      <Swipeable renderLeftActions={() => renderLeftActions(item.id)}>
+        <View style={[styles.card, { borderLeftColor: statusColor }]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.name}>{item.lastName}, {item.firstName}</Text>
+            <View style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
+              <Text style={[styles.badgeText, { color: statusColor }]}>{item.type}</Text>
+            </View>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoText}>✉️ {item.email || 'N/A'}</Text>
+            <Text style={styles.infoText}>📱 {item.phone || 'N/A'}</Text>
+          </View>
+          <View style={styles.dateRow}>
+            <Text style={styles.dateText}>Start: {item.startDate}</Text>
+            <Text style={styles.dateText}>End: {item.endDate}</Text>
+          </View>
+        </View>
+      </Swipeable>
+    );
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.mobileConstraint}>
+        
+        {/* Auth Top Bar */}
+        <View style={styles.authHeader}>
+          {authLoading ? (
+            <ActivityIndicator size="small" color="#3b82f6" />
+          ) : user && isAuthorized ? (
+            <>
+              <Text style={styles.welcomeText}>Admin: {user.email}</Text>
+              <TouchableOpacity onPress={handleLogout} style={styles.authBtn}>
+                <Text style={styles.authBtnText}>Logout</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.welcomeText}>Guest Mode</Text>
+              <TouchableOpacity onPress={handleLogin} style={styles.authBtnGoogle}>
+                <Text style={styles.authBtnText}>Login with Google</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Active Members</Text>
+            <Text style={styles.subtitle}>Dashboard - {members.length} Members</Text>
+          </View>
+          
+          {/* Only show Add button if Authorized */}
+          {isAuthorized && (
+            <TouchableOpacity 
+              style={styles.addBtn}
+              onPress={() => router.push('/add')}
+            >
+              <Text style={styles.addBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {/* Dynamic List Rendering based on Auth State */}
+        {!isAuthorized ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Read-Only Guest Mode</Text>
+            <Text style={styles.emptySubtext}>Click 'Login with Google' at the top to securely view and manage gym members.</Text>
+          </View>
+        ) : loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.loadingText}>Loading database...</Text>
+          </View>
+        ) : members.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No members yet!</Text>
+            <Text style={styles.emptySubtext}>Click the + Add button to start building your gym roster.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={sortedMembers}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#09090b',
+  },
+  mobileConstraint: {
+    flex: 1,
+    maxWidth: 700, 
+    width: '100%',
+    alignSelf: 'center',
+  },
+  authHeader: {
     flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
   },
-  heroSection: {
+  welcomeText: {
+    color: '#a1a1aa',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  authBtn: {
+    backgroundColor: '#27272a',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  authBtnGoogle: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  authBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  header: {
+    padding: 24,
+    paddingTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -1,
   },
-  code: {
+  subtitle: {
+    fontSize: 16,
+    color: '#a1a1aa',
+    marginTop: 4,
+  },
+  addBtn: {
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  addBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  listContent: {
+    padding: 16,
+    gap: 16,
+    paddingBottom: 40,
+  },
+  card: {
+    backgroundColor: '#18181b',
+    borderRadius: 16,
+    padding: 20,
+    borderLeftWidth: 6,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  name: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#f4f4f5',
+  },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
+  infoText: {
+    color: '#a1a1aa',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#27272a',
+  },
+  dateText: {
+    color: '#71717a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#a1a1aa',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    marginTop: 20,
+  },
+  emptyText: {
+    color: '#f4f4f5',
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    color: '#a1a1aa',
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  deleteBtn: {
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 100,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  deleteBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 14,
+    textAlign: 'center',
+  }
 });
