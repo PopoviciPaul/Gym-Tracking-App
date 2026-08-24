@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Platform } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Platform, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -17,6 +17,10 @@ export default function AddMemberScreen() {
   
   const [startDate, setStartDate] = useState(today.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(nextMonth.toISOString().split('T')[0]);
+  
+  const [wantsEmail, setWantsEmail] = useState(true);
+  const [wantsSMS, setWantsSMS] = useState(true);
+  
   const [isSaving, setIsSaving] = useState(false);
 
   const handleStartDateChange = (newDate: string) => {
@@ -47,9 +51,11 @@ export default function AddMemberScreen() {
         lastName: lastName.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        type: types, // Saving as an array but keeping the key 'type' for backward compatibility
+        type: types, 
         startDate,
-        endDate
+        endDate,
+        wantsEmail,
+        wantsSMS
       });
 
       router.back();
@@ -72,6 +78,17 @@ export default function AddMemberScreen() {
         </View>
 
         <View style={styles.form}>
+          <View style={styles.settingsCard}>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>Enable Email Notifications</Text>
+              <Switch value={wantsEmail} onValueChange={setWantsEmail} trackColor={{ false: '#3f3f46', true: '#22c55e' }} />
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>Enable SMS Notifications</Text>
+              <Switch value={wantsSMS} onValueChange={setWantsSMS} trackColor={{ false: '#3f3f46', true: '#22c55e' }} />
+            </View>
+          </View>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>First Name</Text>
             <TextInput 
@@ -236,5 +253,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#15803d',
     opacity: 0.7
   },
-  saveBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700' }
+  saveBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  settingsCard: { backgroundColor: '#18181b', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#27272a' },
+  switchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
+  switchLabel: { color: '#f4f4f5', fontSize: 16, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: '#27272a', marginVertical: 8 }
 });
