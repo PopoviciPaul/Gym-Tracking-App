@@ -33,7 +33,7 @@ export default function ActiveMembersScreen() {
             alert("Access Denied: You do not have administrative privileges.");
             await signOut(auth); // Immediately kick them out
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error checking authorization:", error);
           setIsAuthorized(false);
           await signOut(auth);
@@ -84,7 +84,7 @@ export default function ActiveMembersScreen() {
     if (Platform.OS === 'web') {
       try {
         await signInWithPopup(auth, googleProvider);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Login failed:", error);
       }
     } else {
