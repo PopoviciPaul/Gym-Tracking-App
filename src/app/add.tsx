@@ -138,7 +138,7 @@ export default function AddMemberScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Membership Disciplines (Select Multiple)</Text>
             <View style={styles.typeSelector}>
-              {['BJJ', 'Kickboxing', 'MMA', 'Armwrestling', 'Kids BJJ', 'Kids Karate'].map(t => {
+              {['BJJ', 'BJJ Girls', 'Kickboxing', 'MMA', 'Skandenberg', 'Kids BJJ', 'Kids Karate', 'Kids Kickboxing', 'Fitness'].map(t => {
                 const isSelected = types.includes(t);
                 return (
                   <TouchableOpacity 

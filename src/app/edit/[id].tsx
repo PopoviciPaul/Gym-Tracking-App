@@ -18,10 +18,10 @@ export default function EditMemberScreen() {
   // Safe extraction of type parameter which could be a string or an array of strings
   const parseTypes = (t: any): string[] => {
     if (!t) return ['BJJ'];
-    if (Array.isArray(t)) return t;
+    if (Array.isArray(t)) return t.map((s: string) => s === 'Armwrestling' ? 'Skandenberg' : s);
     if (typeof t === 'string') {
-      if (t.includes(',')) return t.split(',').map(s => s.trim());
-      return [t];
+      if (t.includes(',')) return t.split(',').map(s => s.trim()).map(s => s === 'Armwrestling' ? 'Skandenberg' : s);
+      return [t === 'Armwrestling' ? 'Skandenberg' : t];
     }
     return ['BJJ'];
   };
@@ -151,7 +151,7 @@ export default function EditMemberScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Membership Disciplines (Select Multiple)</Text>
             <View style={styles.typeSelector}>
-              {['BJJ', 'Kickboxing', 'MMA', 'Armwrestling', 'Kids BJJ', 'Kids Karate'].map(t => {
+              {['BJJ', 'BJJ Girls', 'Kickboxing', 'MMA', 'Skandenberg', 'Kids BJJ', 'Kids Karate', 'Kids Kickboxing', 'Fitness'].map(t => {
                 const isSelected = types.includes(t);
                 return (
                   <TouchableOpacity 

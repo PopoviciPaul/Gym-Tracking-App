@@ -137,7 +137,8 @@ export default function ActiveMembersScreen() {
 
   const renderItem = ({ item }: { item: any }) => {
     const statusColor = getStatusColor(item.endDate);
-    const memberTypes = Array.isArray(item.type) ? item.type : (item.type ? [item.type] : []);
+    const rawMemberTypes = Array.isArray(item.type) ? item.type : (item.type ? [item.type] : []);
+    const memberTypes = rawMemberTypes.map((t: string) => t === 'Armwrestling' ? 'Skandenberg' : t);
     
     return (
       <Swipeable renderLeftActions={() => renderLeftActions(item)}>
