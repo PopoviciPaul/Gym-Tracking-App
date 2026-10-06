@@ -6,12 +6,37 @@ import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/aut
 import { db, auth, googleProvider } from '../config/firebase';
 import { Swipeable } from 'react-native-gesture-handler';
 
+const DISCIPLINES = [
+  'BJJ',
+  'BJJ Girls',
+  'Kickboxing',
+  'MMA',
+  'Skandenberg',
+  'Kids BJJ',
+  'Kids Karate',
+  'Kids Kickboxing',
+  'Fitness',
+];
+
+const getMemberStatus = (endDateStr: string): 'active' | 'expiring' | 'expired' => {
+  if (!endDateStr) return 'expired';
+  const end = new Date(endDateStr);
+  const now = new Date();
+  const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
+  if (diffDays < 0) return 'expired';
+  if (diffDays <= 3) return 'expiring';
+  return 'active';
+};
+
 export default function ActiveMembersScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const [selectedDiscipline, setSelectedDiscipline] = useState<string>('ALL');
+  const [selectedStatus, setSelectedStatus] = useState<'ALL' | 'active' | 'expiring' | 'expired'>('ALL');
   
   // Auth States
   const [user, setUser] = useState<User | null>(null);
@@ -82,14 +107,41 @@ export default function ActiveMembersScreen() {
     });
   }, [members]);
 
-  // Filter sorted members by last name search query
+  const hasActiveFilters = selectedDiscipline !== 'ALL' || selectedStatus !== 'ALL';
+
+  const handleResetFilters = () => {
+    setSelectedDiscipline('ALL');
+    setSelectedStatus('ALL');
+  };
+
+  // Filter sorted members by search query, status, and discipline
   const filteredMembers = useMemo(() => {
-    if (!searchQuery.trim()) return sortedMembers;
-    return sortedMembers.filter(m =>
-      (m.lastName || '').toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
-      (m.firstName || '').toLowerCase().includes(searchQuery.toLowerCase().trim())
-    );
-  }, [sortedMembers, searchQuery]);
+    return sortedMembers.filter(m => {
+      // 1. Search Query Filter (matches first or last name)
+      if (searchQuery.trim()) {
+        const queryLower = searchQuery.toLowerCase().trim();
+        const matchesLast = (m.lastName || '').toLowerCase().includes(queryLower);
+        const matchesFirst = (m.firstName || '').toLowerCase().includes(queryLower);
+        if (!matchesLast && !matchesFirst) return false;
+      }
+
+      // 2. Subscription Status Filter
+      if (selectedStatus !== 'ALL') {
+        const status = getMemberStatus(m.endDate);
+        if (status !== selectedStatus) return false;
+      }
+
+      // 3. Discipline Filter
+      if (selectedDiscipline !== 'ALL') {
+        const rawTypes: string[] = Array.isArray(m.type) ? m.type : (m.type ? [m.type] : []);
+        // Map Armwrestling to Skandenberg for backward compatibility
+        const memberTypes = rawTypes.map((t: string) => t === 'Armwrestling' ? 'Skandenberg' : t);
+        if (!memberTypes.includes(selectedDiscipline)) return false;
+      }
+
+      return true;
+    });
+  }, [sortedMembers, searchQuery, selectedDiscipline, selectedStatus]);
 
   const handleLogin = async () => {
     if (Platform.OS === 'web') {
@@ -108,13 +160,9 @@ export default function ActiveMembersScreen() {
   };
 
   const getStatusColor = (endDateStr: string) => {
-    if (!endDateStr) return '#ef4444';
-    const end = new Date(endDateStr);
-    const now = new Date();
-    const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
-    
-    if (diffDays < 0) return '#ef4444'; // Red
-    if (diffDays <= 3) return '#eab308'; // Yellow
+    const status = getMemberStatus(endDateStr);
+    if (status === 'expired') return '#ef4444'; // Red
+    if (status === 'expiring') return '#eab308'; // Yellow
     return '#22c55e'; // Green
   };
 
@@ -203,14 +251,14 @@ export default function ActiveMembersScreen() {
         </View>
 
         <View style={styles.header}>
-          <View>
+          <View style={styles.titleContainer}>
             <Text style={styles.title}>Active Members</Text>
             <Text style={styles.subtitle}>
-              Dashboard - {searchQuery.trim() ? `${filteredMembers.length} of ${members.length}` : `${members.length}`} Members
+              Dashboard - {searchQuery.trim() || hasActiveFilters ? `${filteredMembers.length} of ${members.length}` : `${members.length}`} Members
             </Text>
           </View>
           
-          {/* Only show Add + Search buttons if Authorized */}
+          {/* Only show Add + Search + Filter buttons if Authorized */}
           {isAuthorized && (
             <View style={styles.headerButtons}>
               <TouchableOpacity 
@@ -219,15 +267,25 @@ export default function ActiveMembersScreen() {
               >
                 <Text style={styles.addBtnText}>+ Add</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.searchBtn, isSearchVisible && styles.searchBtnActive]}
-                onPress={() => {
-                  setIsSearchVisible(!isSearchVisible);
-                  if (isSearchVisible) setSearchQuery('');
-                }}
-              >
-                <Text style={styles.searchBtnText}>{isSearchVisible ? '✕ Close' : '🔍 Search'}</Text>
-              </TouchableOpacity>
+              <View style={styles.actionButtonsRow}>
+                <TouchableOpacity 
+                  style={[styles.searchBtn, isSearchVisible && styles.searchBtnActive]}
+                  onPress={() => {
+                    setIsSearchVisible(!isSearchVisible);
+                    if (isSearchVisible) setSearchQuery('');
+                  }}
+                >
+                  <Text style={styles.searchBtnText}>{isSearchVisible ? '✕ Search' : '🔍 Search'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.filterBtn, (isFilterVisible || hasActiveFilters) && styles.filterBtnActive]}
+                  onPress={() => setIsFilterVisible(!isFilterVisible)}
+                >
+                  <Text style={styles.filterBtnText}>
+                    {isFilterVisible ? '✕ Filter' : hasActiveFilters ? '🌪️ Filter (ON)' : '🌪️ Filter'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
@@ -237,7 +295,7 @@ export default function ActiveMembersScreen() {
           <View style={styles.searchContainer}>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by last name..."
+              placeholder="Search by first or last name..."
               placeholderTextColor="#52525b"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -249,6 +307,67 @@ export default function ActiveMembersScreen() {
                 <Text style={styles.clearBtnText}>✕</Text>
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* Filter Panel - visible only when toggled */}
+        {isAuthorized && isFilterVisible && (
+          <View style={styles.filterCard}>
+            <View style={styles.filterCardHeader}>
+              <Text style={styles.filterCardTitle}>Filter Members</Text>
+              {hasActiveFilters && (
+                <TouchableOpacity onPress={handleResetFilters} style={styles.resetFiltersBtn}>
+                  <Text style={styles.resetFiltersText}>Reset All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Subscription Status Section */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionLabel}>SUBSCRIPTION STATUS</Text>
+              <View style={styles.chipsRow}>
+                {[
+                  { key: 'ALL', label: 'All' },
+                  { key: 'active', label: '🟢 Active' },
+                  { key: 'expiring', label: '🟡 Expiring Soon' },
+                  { key: 'expired', label: '🔴 Expired' },
+                ].map(item => {
+                  const isSelected = selectedStatus === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                      onPress={() => setSelectedStatus(item.key as any)}
+                    >
+                      <Text style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Discipline Section */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionLabel}>DISCIPLINE</Text>
+              <View style={styles.chipsRow}>
+                {['ALL', ...DISCIPLINES].map(disc => {
+                  const isSelected = selectedDiscipline === disc;
+                  return (
+                    <TouchableOpacity
+                      key={disc}
+                      style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                      onPress={() => setSelectedDiscipline(disc)}
+                    >
+                      <Text style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}>
+                        {disc === 'ALL' ? 'All' : disc}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         )}
         
@@ -265,8 +384,25 @@ export default function ActiveMembersScreen() {
           </View>
         ) : filteredMembers.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{searchQuery.trim() ? 'No results found.' : 'No members yet!'}</Text>
-            <Text style={styles.emptySubtext}>{searchQuery.trim() ? `No members with last name "${searchQuery}".` : 'Click the + Add button to start building your gym roster.'}</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery.trim() || hasActiveFilters ? 'No matching members' : 'No members yet!'}
+            </Text>
+            <Text style={styles.emptySubtext}>
+              {searchQuery.trim() || hasActiveFilters
+                ? 'Try adjusting your search query or active filters.'
+                : 'Click the + Add button to start building your gym roster.'}
+            </Text>
+            {(searchQuery.trim() || hasActiveFilters) && (
+              <TouchableOpacity
+                style={styles.clearSearchFilterBtn}
+                onPress={() => {
+                  setSearchQuery('');
+                  handleResetFilters();
+                }}
+              >
+                <Text style={styles.clearSearchFilterText}>Clear Filters & Search</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <FlatList
@@ -348,6 +484,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  titleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
   title: {
     fontSize: 32,
     fontWeight: '800',
@@ -364,6 +504,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   addBtnText: {
     color: '#ffffff',
@@ -375,13 +517,17 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: 'flex-end',
   },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   searchBtn: {
     backgroundColor: '#27272a',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     borderRadius: 12,
-    minWidth: 100,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBtnActive: {
     backgroundColor: '#3f3f46',
@@ -390,6 +536,106 @@ const styles = StyleSheet.create({
   },
   searchBtnText: {
     color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  filterBtn: {
+    backgroundColor: '#27272a',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBtnActive: {
+    backgroundColor: '#3f3f46',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  filterBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  filterCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    gap: 16,
+  },
+  filterCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterCardTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  resetFiltersBtn: {
+    backgroundColor: '#27272a',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  resetFiltersText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterSection: {
+    gap: 8,
+  },
+  filterSectionLabel: {
+    color: '#71717a',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterChip: {
+    backgroundColor: '#27272a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#27272a',
+  },
+  filterChipActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  filterChipText: {
+    color: '#a1a1aa',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  clearSearchFilterBtn: {
+    marginTop: 16,
+    backgroundColor: '#27272a',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+  },
+  clearSearchFilterText: {
+    color: '#3b82f6',
     fontWeight: '700',
     fontSize: 14,
   },
