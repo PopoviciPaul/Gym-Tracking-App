@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, SafeAreaView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, FlatList, SafeAreaView, Platform, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { collection, onSnapshot, query, doc, deleteDoc, getDocs, where } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
@@ -10,6 +10,8 @@ export default function ActiveMembersScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
   
   // Auth States
   const [user, setUser] = useState<User | null>(null);
@@ -79,6 +81,15 @@ export default function ActiveMembersScreen() {
       return (a.firstName || '').localeCompare(b.firstName || '');
     });
   }, [members]);
+
+  // Filter sorted members by last name search query
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return sortedMembers;
+    return sortedMembers.filter(m =>
+      (m.lastName || '').toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+      (m.firstName || '').toLowerCase().includes(searchQuery.toLowerCase().trim())
+    );
+  }, [sortedMembers, searchQuery]);
 
   const handleLogin = async () => {
     if (Platform.OS === 'web') {
@@ -194,19 +205,52 @@ export default function ActiveMembersScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Active Members</Text>
-            <Text style={styles.subtitle}>Dashboard - {members.length} Members</Text>
+            <Text style={styles.subtitle}>
+              Dashboard - {searchQuery.trim() ? `${filteredMembers.length} of ${members.length}` : `${members.length}`} Members
+            </Text>
           </View>
           
-          {/* Only show Add button if Authorized */}
+          {/* Only show Add + Search buttons if Authorized */}
           {isAuthorized && (
-            <TouchableOpacity 
-              style={styles.addBtn}
-              onPress={() => router.push('/add')}
-            >
-              <Text style={styles.addBtnText}>+ Add</Text>
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                style={styles.addBtn}
+                onPress={() => router.push('/add')}
+              >
+                <Text style={styles.addBtnText}>+ Add</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.searchBtn, isSearchVisible && styles.searchBtnActive]}
+                onPress={() => {
+                  setIsSearchVisible(!isSearchVisible);
+                  if (isSearchVisible) setSearchQuery('');
+                }}
+              >
+                <Text style={styles.searchBtnText}>{isSearchVisible ? '✕ Close' : '🔍 Search'}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
+
+        {/* Search Input - visible only when toggled */}
+        {isAuthorized && isSearchVisible && (
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by last name..."
+              placeholderTextColor="#52525b"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+              clearButtonMode="while-editing"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity style={styles.clearBtn} onPress={() => setSearchQuery('')}>
+                <Text style={styles.clearBtnText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         
         {/* Dynamic List Rendering based on Auth State */}
         {!isAuthorized ? (
@@ -219,14 +263,14 @@ export default function ActiveMembersScreen() {
             <ActivityIndicator size="large" color="#3b82f6" />
             <Text style={styles.loadingText}>Loading database...</Text>
           </View>
-        ) : members.length === 0 ? (
+        ) : filteredMembers.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No members yet!</Text>
-            <Text style={styles.emptySubtext}>Click the + Add button to start building your gym roster.</Text>
+            <Text style={styles.emptyText}>{searchQuery.trim() ? 'No results found.' : 'No members yet!'}</Text>
+            <Text style={styles.emptySubtext}>{searchQuery.trim() ? `No members with last name "${searchQuery}".` : 'Click the + Add button to start building your gym roster.'}</Text>
           </View>
         ) : (
           <FlatList
-            data={sortedMembers}
+            data={filteredMembers}
             keyExtractor={item => item.id}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
@@ -325,6 +369,58 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  headerButtons: {
+    flexDirection: 'column',
+    gap: 8,
+    alignItems: 'flex-end',
+  },
+  searchBtn: {
+    backgroundColor: '#27272a',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  searchBtnActive: {
+    backgroundColor: '#3f3f46',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  searchBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  searchContainer: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    borderRadius: 12,
+    padding: 14,
+    color: '#f4f4f5',
+    fontSize: 16,
+  },
+  clearBtn: {
+    backgroundColor: '#27272a',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearBtnText: {
+    color: '#a1a1aa',
+    fontSize: 14,
+    fontWeight: '700',
   },
   listContent: {
     padding: 16,
