@@ -1,0 +1,30 @@
+name: Daily Expiration Emails
+
+on:
+  schedule:
+    # Runs every day at 09:00 UTC (11:00 AM Romanian time EET)
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab for testing
+
+jobs:
+  send-emails:
+    name: Check Expirations & Send Emails
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install firebase-admin nodemailer
+
+      - name: Run Expiration Email Script
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+        run: node scripts/send-expiration-emails.js

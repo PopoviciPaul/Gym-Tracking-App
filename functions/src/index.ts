@@ -23,39 +23,67 @@ export const dispatchExpirationWarnings = functions.pubsub.schedule('0 11 * * *'
   .onRun(async (context) => {
     console.log('Starting daily expiration check...');
     
-    // Get today's date in YYYY-MM-DD format based on Romanian timezone
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' });
-    const todayString = formatter.format(now);
+    // Calculate Bucharest dates
+    function getBucharestDate(offsetDays = 0) {
+      const d = new Date();
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Europe/Bucharest',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+      }).formatToParts(d);
+      const year = parseInt(parts.find(p => p.type === 'year')!.value, 10);
+      const month = parseInt(parts.find(p => p.type === 'month')!.value, 10) - 1;
+      const day = parseInt(parts.find(p => p.type === 'day')!.value, 10);
+      const target = new Date(Date.UTC(year, month, day + offsetDays));
+      const yyyy = target.getUTCFullYear();
+      const mm = String(target.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(target.getUTCDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    const todayString = getBucharestDate(0);
+    const threeDaysLaterString = getBucharestDate(3);
     
-    console.log(`Checking for members expiring on: ${todayString}`);
+    console.log(`Checking for members expiring on: Today=${todayString}, In3Days=${threeDaysLaterString}`);
 
     try {
-      const snapshot = await db.collection('members').where('endDate', '==', todayString).get();
-      
-      if (snapshot.empty) {
-        console.log('No memberships expiring today.');
-        return null;
-      }
+      const [warningSnapshot, expiredSnapshot] = await Promise.all([
+        db.collection('members').where('endDate', '==', threeDaysLaterString).get(),
+        db.collection('members').where('endDate', '==', todayString).get()
+      ]);
 
-      console.log(`Found ${snapshot.size} members expiring today. Processing...`);
-
-      const message = "Abonamentul dumneavoastra la 201 a expirat.";
+      const warningMessage = "Buna ziua! Abonamentul dumneavoastra la Two on One Academy va expira peste 3 zile.";
+      const expiredMessage = "Buna ziua! Abonamentul dumneavoastra la Two on One Academy a expirat.";
 
       const promises: Promise<any>[] = [];
 
-      snapshot.forEach((doc) => {
+      // 1. Process 3-day warnings
+      warningSnapshot.forEach((doc) => {
         const member = doc.data();
-        
-        // Dispatch Email if requested and available
         if (member.wantsEmail !== false && member.email) {
           const mailOptions = {
-            from: `"201 Martial Arts Academy" <${GMAIL_EMAIL}>`,
+            from: `"Two on One Academy" <${GMAIL_EMAIL}>`,
             to: member.email,
-            subject: 'Abonament Expirat',
-            text: message,
+            subject: 'Abonamentul dumneavoastră la Two on One Academy expiră în curând',
+            text: warningMessage,
           };
-          console.log(`Sending email to ${member.email}`);
+          console.log(`Sending 3-day reminder to ${member.email}`);
+          promises.push(transporter.sendMail(mailOptions).catch((e: any) => console.error('Email failed:', e)));
+        }
+      });
+
+      // 2. Process today's expirations
+      expiredSnapshot.forEach((doc) => {
+        const member = doc.data();
+        if (member.wantsEmail !== false && member.email) {
+          const mailOptions = {
+            from: `"Two on One Academy" <${GMAIL_EMAIL}>`,
+            to: member.email,
+            subject: 'Abonamentul dumneavoastră la Two on One Academy a expirat',
+            text: expiredMessage,
+          };
+          console.log(`Sending expired notice to ${member.email}`);
           promises.push(transporter.sendMail(mailOptions).catch((e: any) => console.error('Email failed:', e)));
         }
       });
