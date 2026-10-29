@@ -44,13 +44,14 @@ export const dispatchExpirationWarnings = functions.pubsub.schedule('0 11 * * *'
 
     const todayString = getBucharestDate(0);
     const threeDaysLaterString = getBucharestDate(3);
+    const yesterdayString = getBucharestDate(-1);
     
-    console.log(`Checking for members expiring on: Today=${todayString}, In3Days=${threeDaysLaterString}`);
+    console.log(`Checking for members expiring on: Today=${todayString}, In3Days=${threeDaysLaterString}, ExpiredYesterday=${yesterdayString}`);
 
     try {
       const [warningSnapshot, expiredSnapshot] = await Promise.all([
         db.collection('members').where('endDate', '==', threeDaysLaterString).get(),
-        db.collection('members').where('endDate', '==', todayString).get()
+        db.collection('members').where('endDate', '==', yesterdayString).get()
       ]);
 
       const warningMessage = "Buna ziua! Abonamentul dumneavoastra la Two on One Academy va expira peste 3 zile.";

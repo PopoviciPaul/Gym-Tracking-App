@@ -66,15 +66,17 @@ function getBucharestDateString(daysOffset = 0) {
 async function runDailyExpirationCheck() {
   const todayString = getBucharestDateString(0);
   const threeDaysLaterString = getBucharestDateString(3);
+  const yesterdayString = getBucharestDateString(-1);
 
   console.log(`[Daily Check] Bucharest Today: ${todayString}`);
-  console.log(`[Daily Check] Bucharest In 3 Days: ${threeDaysLaterString}`);
+  console.log(`[Daily Check] Expiring In 3 Days: ${threeDaysLaterString}`);
+  console.log(`[Daily Check] Expired Yesterday (Notice Sent Today): ${yesterdayString}`);
 
   // Message 1: 3 days before expiration
   const warningText = 'Buna ziua! Abonamentul dumneavoastra la Two on One Academy va expira peste 3 zile.';
   const warningSubject = 'Abonamentul dumneavoastră la Two on One Academy expiră în curând';
 
-  // Message 2: On the day of expiration
+  // Message 2: On the day after last active date (first day they can no longer train)
   const expiredText = 'Buna ziua! Abonamentul dumneavoastra la Two on One Academy a expirat.';
   const expiredSubject = 'Abonamentul dumneavoastră la Two on One Academy a expirat';
 
@@ -82,9 +84,9 @@ async function runDailyExpirationCheck() {
   console.log(`Checking for members expiring on ${threeDaysLaterString} (3-day reminder)...`);
   const warningSnapshot = await db.collection('members').where('endDate', '==', threeDaysLaterString).get();
 
-  // Query 2: Members expiring today
-  console.log(`Checking for members expiring on ${todayString} (expired today)...`);
-  const expiredSnapshot = await db.collection('members').where('endDate', '==', todayString).get();
+  // Query 2: Members whose last active day was yesterday (officially expired as of today)
+  console.log(`Checking for members whose membership ended on ${yesterdayString} (officially expired today)...`);
+  const expiredSnapshot = await db.collection('members').where('endDate', '==', yesterdayString).get();
 
   const emailPromises = [];
 
